@@ -12,26 +12,24 @@
         <meta name="author" content="Axel Donath">
       
       
-        <link rel="canonical" href="https://adonath.github.io/gmmx/">
+        <link rel="canonical" href="https://adonath.github.io/gmmx/development/">
       
       
       
-        <link rel="next" href="modules/">
       
-      
-      <link rel="icon" href="assets/images/favicon.png">
+      <link rel="icon" href="../assets/images/favicon.png">
       <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.5.48">
     
     
       
-        <title>gmmx</title>
+        <title>Development - gmmx</title>
       
     
     
-      <link rel="stylesheet" href="assets/stylesheets/main.6f8fc17f.min.css">
+      <link rel="stylesheet" href="../assets/stylesheets/main.6f8fc17f.min.css">
       
         
-        <link rel="stylesheet" href="assets/stylesheets/palette.06af60db.min.css">
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
       
       
 
@@ -50,9 +48,9 @@
       
     
     
-      <link rel="stylesheet" href="assets/_mkdocstrings.css">
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
     
-    <script>__md_scope=new URL(".",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
     
       
 
@@ -78,7 +76,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#gmmx-gaussian-mixture-models-in-jax" class="md-skip">
+        <a href="#getting-started-with-your-project" class="md-skip">
           Skip to content
         </a>
       
@@ -94,7 +92,7 @@
 
 <header class="md-header md-header--shadow" data-md-component="header">
   <nav class="md-header__inner md-grid" aria-label="Header">
-    <a href="." title="gmmx" class="md-header__button md-logo" aria-label="gmmx" data-md-component="logo">
+    <a href=".." title="gmmx" class="md-header__button md-logo" aria-label="gmmx" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -114,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              Home
+              Development
             
           </span>
         </div>
@@ -227,7 +225,7 @@
 
 <nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
   <label class="md-nav__title" for="__drawer">
-    <a href="." title="gmmx" class="md-nav__button md-logo" aria-label="gmmx" data-md-component="logo">
+    <a href=".." title="gmmx" class="md-nav__button md-logo" aria-label="gmmx" data-md-component="logo">
       
   
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
@@ -254,19 +252,10 @@
       
   
   
-    
   
   
-  
-    <li class="md-nav__item md-nav__item--active">
-      
-      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
-      
-      
-        
-      
-      
-      <a href="." class="md-nav__link md-nav__link--active">
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -275,7 +264,6 @@
   
 
       </a>
-      
     </li>
   
 
@@ -287,7 +275,7 @@
   
   
     <li class="md-nav__item">
-      <a href="modules/" class="md-nav__link">
+      <a href="../modules/" class="md-nav__link">
         
   
   <span class="md-ellipsis">
@@ -317,8 +305,74 @@
   
   
   
-    
   
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#getting-started-with-your-project" class="md-nav__link">
+    <span class="md-ellipsis">
+      Getting started with your project
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Getting started with your project">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#1-create-a-new-repository" class="md-nav__link">
+    <span class="md-ellipsis">
+      1. Create a New Repository
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#2-set-up-your-development-environment" class="md-nav__link">
+    <span class="md-ellipsis">
+      2. Set Up Your Development Environment
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#3-run-the-pre-commit-hooks" class="md-nav__link">
+    <span class="md-ellipsis">
+      3. Run the pre-commit hooks
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#4-commit-the-changes" class="md-nav__link">
+    <span class="md-ellipsis">
+      4. Commit the changes
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#releasing-a-new-version" class="md-nav__link">
+    <span class="md-ellipsis">
+      Releasing a new version
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
   
 </nav>
                   </div>
@@ -336,12 +390,47 @@
   
 
 
-<h1 id="gmmx-gaussian-mixture-models-in-jax">GMMX: Gaussian Mixture Models in Jax<a class="headerlink" href="#gmmx-gaussian-mixture-models-in-jax" title="Permanent link">&para;</a></h1>
-<p><a href="https://img.shields.io/github/v/release/adonath/gmmx"><img alt="Release" src="https://img.shields.io/github/v/release/adonath/gmmx" /></a>
-<a href="https://github.com/adonath/gmmx/actions/workflows/main.yml?query=branch%3Amain"><img alt="Build status" src="https://img.shields.io/github/actions/workflow/status/adonath/gmmx/main.yml?branch=main" /></a>
-<a href="https://img.shields.io/github/commit-activity/m/adonath/gmmx"><img alt="Commit activity" src="https://img.shields.io/github/commit-activity/m/adonath/gmmx" /></a>
-<a href="https://img.shields.io/github/license/adonath/gmmx"><img alt="License" src="https://img.shields.io/github/license/adonath/gmmx" /></a></p>
-<p>A minimal implementation of Gaussian Mixture Models in Jax.</p>
+  <h1>Development</h1>
+
+<h2 id="getting-started-with-your-project">Getting started with your project<a class="headerlink" href="#getting-started-with-your-project" title="Permanent link">&para;</a></h2>
+<h3 id="1-create-a-new-repository">1. Create a New Repository<a class="headerlink" href="#1-create-a-new-repository" title="Permanent link">&para;</a></h3>
+<p>First, create a repository on GitHub with the same name as this project, and then run the following commands:</p>
+<pre><code class="language-bash">git init -b main
+git add .
+git commit -m &quot;init commit&quot;
+git remote add origin git@github.com:adonath/gmmx.git
+git push -u origin main
+</code></pre>
+<h3 id="2-set-up-your-development-environment">2. Set Up Your Development Environment<a class="headerlink" href="#2-set-up-your-development-environment" title="Permanent link">&para;</a></h3>
+<p>Then, install the environment and the pre-commit hooks with</p>
+<pre><code class="language-bash">make install
+</code></pre>
+<p>This will also generate your <code>uv.lock</code> file</p>
+<h3 id="3-run-the-pre-commit-hooks">3. Run the pre-commit hooks<a class="headerlink" href="#3-run-the-pre-commit-hooks" title="Permanent link">&para;</a></h3>
+<p>Initially, the CI/CD pipeline might be failing due to formatting issues. To resolve those run:</p>
+<pre><code class="language-bash">uv run pre-commit run -a
+</code></pre>
+<h3 id="4-commit-the-changes">4. Commit the changes<a class="headerlink" href="#4-commit-the-changes" title="Permanent link">&para;</a></h3>
+<p>Lastly, commit the changes made by the two steps above to your repository.</p>
+<pre><code class="language-bash">git add .
+git commit -m 'Fix formatting issues'
+git push origin main
+</code></pre>
+<p>You are now ready to start development on your project!
+The CI/CD pipeline will be triggered when you open a pull request, merge to main, or when you create a new release.</p>
+<p>To finalize the set-up for publishing to PyPI, see <a href="https://fpgmaas.github.io/cookiecutter-uv/features/publishing/#set-up-for-pypi">here</a>.
+For activating the automatic documentation with MkDocs, see <a href="https://fpgmaas.github.io/cookiecutter-uv/features/mkdocs/#enabling-the-documentation-on-github">here</a>.
+To enable the code coverage reports, see <a href="https://fpgmaas.github.io/cookiecutter-uv/features/codecov/">here</a>.</p>
+<h2 id="releasing-a-new-version">Releasing a new version<a class="headerlink" href="#releasing-a-new-version" title="Permanent link">&para;</a></h2>
+<ul>
+<li>Create an API Token on <a href="https://pypi.org/">PyPI</a>.</li>
+<li>Add the API Token to your projects secrets with the name <code>PYPI_TOKEN</code> by visiting <a href="https://github.com/adonath/gmmx/settings/secrets/actions/new">this page</a>.</li>
+<li>Create a <a href="https://github.com/adonath/gmmx/releases/new">new release</a> on Github.</li>
+<li>Create a new tag in the form <code>*.*.*</code>.</li>
+</ul>
+<p>For more details, see <a href="https://fpgmaas.github.io/cookiecutter-uv/features/cicd/#how-to-trigger-a-release">here</a>.</p>
+<hr />
+<p>Repository initiated with <a href="https://github.com/fpgmaas/cookiecutter-uv">fpgmaas/cookiecutter-uv</a>.</p>
 
 
 
@@ -418,10 +507,10 @@
     </div>
     
     
-    <script id="__config" type="application/json">{"base": ".", "features": [], "search": "assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    <script id="__config" type="application/json">{"base": "..", "features": [], "search": "../assets/javascripts/workers/search.6ce7567c.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
     
     
-      <script src="assets/javascripts/bundle.83f73b43.min.js"></script>
+      <script src="../assets/javascripts/bundle.83f73b43.min.js"></script>
       
     
   </body>
