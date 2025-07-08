@@ -72,7 +72,7 @@ __all__ = [
 
 log = logging.getLogger()
 
-AnyArray = Union[np.typing.NDArray, jax.Array]
+# AnyArray = Union[np.typing.NDArray, jax.Array]
 Device = Union[str, None]
 
 
@@ -126,7 +126,7 @@ class FullCovariances:
         check_shape(self.values, (1, None, None, None))
 
     @classmethod
-    def from_squeezed(cls, values: AnyArray) -> FullCovariances:
+    def from_squeezed(cls, values) -> FullCovariances:
         """Create a covariance matrix from squeezed array
 
         Parameters
@@ -146,7 +146,7 @@ class FullCovariances:
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
 
     @property
-    def values_numpy(self) -> np.typing.NDArray:
+    def values_numpy(self):
         """Covariance as numpy array"""
         return np.squeeze(np.asarray(self.values), axis=Axis.batch)
 
@@ -156,7 +156,7 @@ class FullCovariances:
         return self.values
 
     @property
-    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+    def precisions_cholesky_numpy(self):
         """Compute precision matrices"""
         return np.squeeze(np.asarray(self.precisions_cholesky), axis=Axis.batch)
 
@@ -293,7 +293,7 @@ class FullCovariances:
         return precisions_chol.mT
 
     @classmethod
-    def from_precisions(cls, precisions: AnyArray) -> FullCovariances:
+    def from_precisions(cls, precisions) -> FullCovariances:
         """Create covariance matrix from precision matrices"""
         values = jsp.linalg.inv(precisions)
         return cls.from_squeezed(values=values)
@@ -319,7 +319,7 @@ class DiagCovariances:
         return values.at[:, :, idx, idx].set(covar_diag)
 
     @classmethod
-    def from_squeezed(cls, values: AnyArray) -> DiagCovariances:
+    def from_squeezed(cls, values) -> DiagCovariances:
         """Create a diagonal covariance matrix from squeezed array
 
         Parameters
@@ -394,7 +394,7 @@ class DiagCovariances:
         return jnp.sqrt(1.0 / self.values).mT
 
     @property
-    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+    def precisions_cholesky_numpy(self):
         """Compute precision matrices"""
         return np.squeeze(
             np.asarray(self.precisions_cholesky_sparse),
@@ -402,7 +402,7 @@ class DiagCovariances:
         )
 
     @property
-    def values_numpy(self) -> np.typing.NDArray:
+    def values_numpy(self):
         """Covariance as numpy array"""
         return np.squeeze(
             np.asarray(self.values), axis=(Axis.batch, Axis.features_covar)
@@ -428,7 +428,7 @@ class DiagCovariances:
         )
 
     @classmethod
-    def from_precisions(cls, precisions: AnyArray) -> DiagCovariances:
+    def from_precisions(cls, precisions) -> DiagCovariances:
         """Create covariance matrix from precision matrices"""
         values = 1.0 / precisions
         return cls.from_squeezed(values=values)
@@ -470,7 +470,7 @@ class GaussianMixtureModelJax:
         check_shape(self.means, (1, None, None, 1))
 
     @property
-    def weights_numpy(self) -> np.typing.NDArray:
+    def weights_numpy(self):
         """Weights as numpy array"""
         return np.squeeze(
             np.asarray(self.weights),
@@ -478,7 +478,7 @@ class GaussianMixtureModelJax:
         )
 
     @property
-    def means_numpy(self) -> np.typing.NDArray:
+    def means_numpy(self):
         """Means as numpy array"""
         return np.squeeze(
             np.asarray(self.means), axis=(Axis.batch, Axis.features_covar)
@@ -526,9 +526,9 @@ class GaussianMixtureModelJax:
     @classmethod
     def from_squeezed(
         cls,
-        means: AnyArray,
-        covariances: AnyArray,
-        weights: AnyArray,
+        means,
+        covariances,
+        weights,
         covariance_type: CovarianceType | str = CovarianceType.full,
     ) -> GaussianMixtureModelJax:
         """Create a Jax GMM from squeezed arrays
@@ -601,7 +601,7 @@ class GaussianMixtureModelJax:
     @classmethod
     def from_k_means(
         cls,
-        x: AnyArray,
+        x,
         n_components: int,
         reg_covar: float = 1e-6,
         covariance_type: CovarianceType = CovarianceType.full,
@@ -881,7 +881,7 @@ class GaussianMixtureModelJax:
         )
 
     @partial(jax.jit, static_argnames=["n_samples"])
-    def sample(self, key: jax.Array, n_samples: int) -> jax.Array:
+    def sample(self, key: jax.Array, n_samples: int):
         """Sample from the model
 
         Parameters
@@ -920,7 +920,22 @@ class GaussianMixtureModelJax:
             shape=(n_samples,),
         )
 
-        return samples
+        return samples, selected
+
+    @classmethod
+    def from_fastinit(
+        cls,
+        x,
+        n_components: int,
+        reg_covar: float = 1e-6,
+        covariance_type: CovarianceType = CovarianceType.full,
+        **kwargs: dict,
+    ) -> GaussianMixtureModelJax:
+        kwargs['max_iter'] = 1
+        kwargs['n_init'] = 1
+        kwargs['tol'] = 1e-2
+        kwargs['init'] = 'random'
+        return cls.from_k_means(x, n_components, reg_covar, covariance_type, **kwargs)
 
 
 def check_model_fitted(
@@ -936,6 +951,7 @@ def check_model_fitted(
 
 INIT_METHODS = {
     "kmeans": GaussianMixtureModelJax.from_k_means,
+    "fastinit": GaussianMixtureModelJax.from_fastinit,
 }
 
 
@@ -953,42 +969,38 @@ class GaussianMixtureSKLearn:
     max_iter: int = 100
     n_init: int = 1
     init_params: str = "kmeans"
-    weights_init: AnyArray | None = None
-    means_init: AnyArray | None = None
-    precisions_init: AnyArray | None = None
+    weights_init = None
+    means_init = None
+    precisions_init = None
     random_state: np.random.RandomState | None = None
     warm_start: bool = False
     _gmm: GaussianMixtureModelJax | None = field(init=False, repr=False, default=None)
 
     def __post_init__(self) -> None:
         from sklearn.utils import check_random_state  # type: ignore [import-untyped]
-
-        if self.n_init > 1:
-            raise NotImplementedError("n_init > 1 is not supported yet.")
-
         self.random_state = check_random_state(self.random_state)
 
     @property
-    def weights_(self) -> np.typing.NDArray:
+    def weights_(self):
         """Weights of each component"""
         return check_model_fitted(self).weights_numpy
 
     @property
-    def means_(self) -> np.typing.NDArray:
+    def means_(self):
         """Means of each component"""
         return check_model_fitted(self).means_numpy
 
     @property
-    def precisions_cholesky_(self) -> np.typing.NDArray:
+    def precisions_cholesky_(self):
         """Precision matrices of each component"""
         return check_model_fitted(self).covariances.precisions_cholesky_numpy
 
     @property
-    def covariances_(self) -> np.typing.NDArray:
+    def covariances_(self):
         """Covariances of each component"""
         return check_model_fitted(self).covariances.values_numpy
 
-    def _initialize_gmm(self, x: AnyArray) -> None:
+    def _initialize_gmm(self, x) -> None:
         init_from_data = (
             self.weights_init is None
             or self.means_init is None
@@ -1015,7 +1027,7 @@ class GaussianMixtureSKLearn:
                 covariance_type=self.covariance_type,
             )
 
-    def fit(self, X: AnyArray) -> GaussianMixtureSKLearn:
+    def fit(self, X) -> GaussianMixtureSKLearn:
         """Fit the model"""
         from gmmx.fit import EMFitter
 
@@ -1034,41 +1046,42 @@ class GaussianMixtureSKLearn:
         self.converged_ = result.converged
         return self
 
-    def predict(self, X: AnyArray) -> np.typing.NDArray:
+    def predict(self, X):
         """Predict the component index for each sample"""
         return np.squeeze(check_model_fitted(self).predict(X), axis=Axis.components)  # type: ignore [no-any-return]
 
-    def fit_predict(self) -> np.typing.NDArray:
+    def fit_predict(self):
         """Fit the model and predict the component index for each sample"""
         raise NotImplementedError
 
-    def predict_proba(self, X: AnyArray) -> np.typing.NDArray:
+    def predict_proba(self, X):
         """Predict the probability of each sample belonging to each component"""
         return np.squeeze(  # type: ignore [no-any-return]
             check_model_fitted(self).predict_proba(X),
             axis=(Axis.features, Axis.features_covar),
         )
 
-    def sample(self, n_samples: int) -> np.typing.NDArray:
+    def sample(self, n_samples: int):
         """Sample from the model"""
         key = jax.random.key(self.random_state.randint(2**32 - 1))  # type: ignore [union-attr]
-        return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
+        samples, labels = check_model_fitted(self).sample(key=key, n_samples=n_samples)
+        return np.asarray(samples), np.asarray(labels)
 
-    def score(self, X: AnyArray) -> np.typing.NDArray:
+    def score(self, X):
         """Compute the log likelihood of the data"""
         return np.asarray(check_model_fitted(self).score(X))
 
-    def score_samples(self, X: AnyArray) -> np.typing.NDArray:
+    def score_samples(self, X):
         """Compute the weighted log probabilities for each sample"""
         return np.squeeze(  # type: ignore [no-any-return]
             (check_model_fitted(self).score_samples(X)),
             axis=(Axis.components, Axis.features, Axis.features_covar),
         )
 
-    def bic(self, X: AnyArray) -> np.typing.NDArray:
+    def bic(self, X):
         """Compute the Bayesian Information Criterion"""
         return np.asarray(check_model_fitted(self).bic(X))
 
-    def aic(self, X: AnyArray) -> np.typing.NDArray:
+    def aic(self, X):
         """Compute the Akaike Information Criterion"""
         return np.asarray(check_model_fitted(self).aic(X))
