@@ -917,7 +917,7 @@ class GaussianMixtureModelJax:
         )
 
     @partial(jax.jit, static_argnames=["n_samples"])
-    def sample(self, key: jax.Array, n_samples: int) -> jax.Array:
+    def sample(self, key: jax.Array, n_samples: int) -> tuple[jax.Array, jax.Array]:
         """Sample from the model
 
         Parameters
@@ -931,6 +931,8 @@ class GaussianMixtureModelJax:
         -------
         samples : jax.array
             Samples
+        selected : jax.array
+            Index of the component each sample was drawn from
         """
         key, subkey = jax.random.split(key)
 
@@ -956,7 +958,7 @@ class GaussianMixtureModelJax:
             shape=(n_samples,),
         )
 
-        return samples
+        return samples, selected
 
 
 def check_model_fitted(
@@ -1083,10 +1085,21 @@ class GaussianMixtureSKLearn:
             axis=(Axis.features, Axis.features_covar),
         )
 
-    def sample(self, n_samples: int) -> np.typing.NDArray:
-        """Sample from the model"""
+    def sample(self, n_samples: int) -> tuple[np.typing.NDArray, np.typing.NDArray]:
+        """Sample from the model
+
+        Returns
+        -------
+        X : np.array
+            Samples
+        y : np.array
+            Index of the component each sample was drawn from
+        """
         key = jax.random.key(self.random_state.randint(2**32 - 1))  # type: ignore [union-attr]
-        return np.asarray(check_model_fitted(self).sample(key=key, n_samples=n_samples))
+        samples, selected = check_model_fitted(self).sample(
+            key=key, n_samples=n_samples
+        )
+        return np.asarray(samples), np.asarray(selected)
 
     def score(self, X: AnyArray) -> np.typing.NDArray:
         """Compute the log likelihood of the data"""

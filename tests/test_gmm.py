@@ -108,11 +108,14 @@ def test_against_sklearn_all(gmm_jax, method):
 def test_sample(gmm_jax):
     key = jax.random.PRNGKey(0)
 
-    assert gmm_jax.sample(key, 2).shape == (2, 3)
+    samples, selected = gmm_jax.sample(key, 2)
+    assert samples.shape == (2, 3)
+    assert selected.shape == (2,)
 
     # The individual sample values depend on the random number stream of the
     # installed JAX version, so we compare the empirical distribution instead.
-    samples = np.asarray(gmm_jax.sample(key, 100_000))
+    samples, selected = gmm_jax.sample(key, 100_000)
+    samples, selected = np.asarray(samples), np.asarray(selected)
 
     mean_expected = np.sum(WEIGHTS[:, np.newaxis] * MEANS, axis=0)
     diff = MEANS - mean_expected
@@ -123,6 +126,13 @@ def test_sample(gmm_jax):
 
     assert_allclose(samples.mean(axis=0), mean_expected, atol=0.05)
     assert_allclose(np.cov(samples.T), covar_expected, atol=0.05)
+
+    # the samples of each component follow the mean of that component
+    fraction = np.bincount(selected, minlength=len(WEIGHTS)) / selected.size
+    assert_allclose(fraction, WEIGHTS, atol=0.01)
+
+    for idx, mean in enumerate(MEANS):
+        assert_allclose(samples[selected == idx].mean(axis=0), mean, atol=0.05)
 
 
 def test_predict(gmm_jax):
@@ -267,3 +277,9 @@ def test_sklearn_api(gmm_jax):
     value = gmm.bic(x[:2])
     expected = {"full": 52.604428, "diag": 49.032291}
     assert_allclose(value, expected[covar_str], rtol=1e-4)
+
+    # same signature as `~sklearn.mixture.GaussianMixture.sample`
+    samples, selected = gmm.sample(10)
+    assert samples.shape == (10, 3)
+    assert selected.shape == (10,)
+    assert set(np.unique(selected)) <= {0, 1}
