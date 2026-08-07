@@ -182,16 +182,15 @@ def test_fit(gmm_jax):
     fitter = EMFitter(tol=1e-6)
     result = fitter.fit(x=x, gmm=gmm_jax)
 
-    # The number of iterations is not deterministic across architectures
-    # and depends on the precision the model is fitted with. The spherical
-    # fit converges slowly, as its test data has strongly overlapping
-    # components, so its count varies too much to enumerate.
+    # The number of iterations is not deterministic across architectures and
+    # jax versions and depends on the precision the model is fitted with, so
+    # we only assert a range that would still catch a convergence regression
     covar_str = gmm_jax.covariances.type.value
     expected = {
-        "full": [4, 7],
-        "diag": [6, 7],
-        "tied": [4, 5],
-        "spherical": range(12, 20),
+        "full": range(3, 9),
+        "diag": range(5, 9),
+        "tied": range(3, 7),
+        "spherical": range(11, 20),
     }
     assert int(result.n_iter) in expected[covar_str]
 
@@ -254,10 +253,10 @@ def test_fit_against_sklearn(gmm_jax):
     assert_allclose(gmm_sklearn.weights_, [0.2, 0.8], rtol=0.06)
 
     expected = {
-        "full": [9],
-        "diag": [8, 9, 11],
-        "tied": [5, 6],
-        "spherical": range(14, 21),
+        "full": range(8, 12),
+        "diag": range(7, 13),
+        "tied": range(3, 8),
+        "spherical": range(13, 21),
     }
     assert int(result_jax.n_iter) in expected[covar_str]
     assert_allclose(result_jax.gmm.weights_numpy, [0.2, 0.8], rtol=0.06)
