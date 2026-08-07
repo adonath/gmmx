@@ -16,7 +16,7 @@ def draw_ellipse(position, covariance, ax=None, **kwargs):
 
     # Convert covariance to principal axes
     if covariance.shape == (2, 2):
-        U, s, Vt = np.linalg.svd(covariance)
+        U, s, _ = np.linalg.svd(covariance)
         angle = np.degrees(np.arctan2(U[1, 0], U[0, 0]))
         width, height = 2 * np.sqrt(s)
     else:
@@ -58,7 +58,7 @@ def plot_gmm(gmm, X, label=True, ax=None):
 def fit_and_plot_gmm(n_components, ax=None):
     """Fit and plot a GMM"""
     ax = ax or plt.gca()
-    x, y = make_moons(200, noise=0.05, random_state=0)
+    x, _ = make_moons(200, noise=0.05, random_state=0)
     ax.scatter(x[:, 0], x[:, 1])
     ax.text(
         0.95,

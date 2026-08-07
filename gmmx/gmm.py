@@ -336,6 +336,32 @@ class DiagCovariances:
             values=jnp.expand_dims(values, axis=(Axis.batch, Axis.features_covar))
         )
 
+    @classmethod
+    def create(
+        cls, n_components: int, n_features: int, device: Device = None
+    ) -> DiagCovariances:
+        """Create diagonal covariance matrices
+
+        By default the covariance values are set to one.
+
+        Parameters
+        ----------
+        n_components : int
+            Number of components
+        n_features : int
+            Number of features
+        device : str, optional
+            Device, by default None
+
+        Returns
+        -------
+        covariances : DiagCovariances
+            Covariance matrix instance.
+        """
+        values = jnp.ones((1, n_components, n_features, 1))
+        values = jax.device_put(values, device=device)
+        return cls(values=values)
+
     @property
     def n_components(self) -> int:
         """Number of components"""
