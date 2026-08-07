@@ -68,6 +68,8 @@ __all__ = [
     "FullCovariances",
     "GaussianMixtureModelJax",
     "GaussianMixtureSKLearn",
+    "SphericalCovariances",
+    "TiedCovariances",
 ]
 
 log = logging.getLogger()
@@ -81,6 +83,8 @@ class CovarianceType(str, Enum):
 
     full = "full"
     diag = "diag"
+    tied = "tied"
+    spherical = "spherical"
 
 
 class Axis(int, Enum):
@@ -92,7 +96,7 @@ class Axis(int, Enum):
     features_covar = 3
 
 
-def check_shape(array: jax.Array, expected: tuple[int | None, ...]) -> None:
+def check_shape(array: AnyArray, expected: tuple[int | None, ...]) -> None:
     """Check shape of array"""
     if len(array.shape) != len(expected):
         message = f"Expected shape {expected}, got {array.shape}"
@@ -122,13 +126,18 @@ class FullCovariances:
         check_shape(self.values, (1, None, None, None))
 
     @classmethod
-    def from_squeezed(cls, values: AnyArray) -> FullCovariances:
+    def from_squeezed(
+        cls, values: AnyArray, n_features: int | None = None
+    ) -> FullCovariances:
         """Create a covariance matrix from squeezed array
 
         Parameters
         ----------
         values : jax.Array ot np.array
             Covariance values. Expected shape is (n_components, n_features, n_features)
+        n_features : int, optional
+            Number of features. The squeezed shape of this covariance type
+            already encodes it, so it is only validated against, if given.
 
         Returns
         -------
@@ -139,6 +148,7 @@ class FullCovariances:
             message = f"Expected array of shape (n_components, n_features, n_features), got {values.shape}"
             raise ValueError(message)
 
+        check_shape(values, (None, n_features, n_features))
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
 
     @property
@@ -289,10 +299,148 @@ class FullCovariances:
         return precisions_chol.mT
 
     @classmethod
-    def from_precisions(cls, precisions: AnyArray) -> FullCovariances:
+    def from_precisions(
+        cls, precisions: AnyArray, n_features: int | None = None
+    ) -> FullCovariances:
         """Create covariance matrix from precision matrices"""
         values = jsp.linalg.inv(precisions)
-        return cls.from_squeezed(values=values)
+        return cls.from_squeezed(values=values, n_features=n_features)
+
+
+@register_dataclass_jax(data_fields=["values"])
+@dataclass
+class TiedCovariances(FullCovariances):
+    """Tied covariance matrix, shared by all components
+
+    All the covariance math is identical to `FullCovariances`, the single
+    covariance matrix is simply broadcast along the components axis.
+
+    Attributes
+    ----------
+    values : jax.array
+        Covariance values. Expected shape is (1, 1, n_features, n_features)
+    """
+
+    values: jax.Array
+    type: ClassVar[CovarianceType] = CovarianceType.tied
+
+    def __post_init__(self) -> None:
+        check_shape(self.values, (1, 1, None, None))
+
+    @classmethod
+    def from_squeezed(
+        cls, values: AnyArray, n_features: int | None = None
+    ) -> TiedCovariances:
+        """Create a tied covariance matrix from squeezed array
+
+        Parameters
+        ----------
+        values : jax.Array ot np.array
+            Covariance values. Expected shape is (n_features, n_features)
+        n_features : int, optional
+            Number of features. The squeezed shape of this covariance type
+            already encodes it, so it is only validated against, if given.
+
+        Returns
+        -------
+        covariances : TiedCovariances
+            Covariance matrix instance.
+        """
+        if values.ndim != 2:
+            message = (
+                f"Expected array of shape (n_features, n_features), got {values.shape}"
+            )
+            raise ValueError(message)
+
+        check_shape(values, (n_features, n_features))
+        return cls(values=jnp.expand_dims(values, axis=(Axis.batch, Axis.components)))
+
+    @property
+    def values_numpy(self) -> np.typing.NDArray:
+        """Covariance as numpy array"""
+        return np.squeeze(np.asarray(self.values), axis=(Axis.batch, Axis.components))
+
+    @property
+    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+        """Compute precision matrices"""
+        return np.squeeze(
+            np.asarray(self.precisions_cholesky), axis=(Axis.batch, Axis.components)
+        )
+
+    @classmethod
+    def create(
+        cls, n_components: int, n_features: int, device: Device = None
+    ) -> TiedCovariances:
+        """Create tied covariance matrix
+
+        By default the covariance matrix is set to the identity matrix.
+
+        Parameters
+        ----------
+        n_components : int
+            Number of components. Unused, as the covariance matrix is shared.
+        n_features : int
+            Number of features
+        device : str, optional
+            Device, by default None
+
+        Returns
+        -------
+        covariances : TiedCovariances
+            Covariance matrix instance.
+        """
+        values = jnp.expand_dims(
+            jnp.eye(n_features), axis=(Axis.batch, Axis.components)
+        )
+        values = jax.device_put(values, device=device)
+        return cls(values=values)
+
+    @classmethod
+    def from_responsibilities(
+        cls,
+        x: jax.Array,
+        means: jax.Array,
+        resp: jax.Array,
+        nk: jax.Array,
+        reg_covar: float,
+    ) -> TiedCovariances:
+        """Estimate updated covariance matrix from data
+
+        The tied covariance is the average of the per component covariances,
+        weighted by the number of samples in each component.
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+        means : jax.array
+            Means of the components
+        resp : jax.array
+            Responsibilities
+        nk : jax.array
+            Number of samples in each component
+        reg_covar : float
+            Regularization for the covariance matrix
+
+        Returns
+        -------
+        covariances : TiedCovariances
+            Updated covariance matrix instance.
+        """
+        covariances = FullCovariances.from_responsibilities(
+            x=x, means=means, resp=resp, nk=nk, reg_covar=0.0
+        )
+        values = jnp.sum(
+            nk * covariances.values, axis=Axis.components, keepdims=True
+        ) / jnp.sum(nk)
+        idx = jnp.arange(x.shape[Axis.features])
+        values = values.at[:, :, idx, idx].add(reg_covar)
+        return cls(values=values)
+
+    @property
+    def n_parameters(self) -> int:
+        """Number of parameters"""
+        return int(self.n_features * (self.n_features + 1) / 2.0)
 
 
 @register_dataclass_jax(data_fields=["values"])
@@ -315,13 +463,18 @@ class DiagCovariances:
         return values.at[:, :, idx, idx].set(covar_diag)
 
     @classmethod
-    def from_squeezed(cls, values: AnyArray) -> DiagCovariances:
+    def from_squeezed(
+        cls, values: AnyArray, n_features: int | None = None
+    ) -> DiagCovariances:
         """Create a diagonal covariance matrix from squeezed array
 
         Parameters
         ----------
         values : jax.Array ot np.array
             Covariance values. Expected shape is (n_components, n_features)
+        n_features : int, optional
+            Number of features. The squeezed shape of this covariance type
+            already encodes it, so it is only validated against, if given.
 
         Returns
         -------
@@ -332,6 +485,7 @@ class DiagCovariances:
             message = f"Expected array of shape (n_components, n_features), got {values.shape}"
             raise ValueError(message)
 
+        check_shape(values, (None, n_features))
         return cls(
             values=jnp.expand_dims(values, axis=(Axis.batch, Axis.features_covar))
         )
@@ -450,21 +604,138 @@ class DiagCovariances:
         )
 
     @classmethod
-    def from_precisions(cls, precisions: AnyArray) -> DiagCovariances:
+    def from_precisions(
+        cls, precisions: AnyArray, n_features: int | None = None
+    ) -> DiagCovariances:
         """Create covariance matrix from precision matrices"""
         values = 1.0 / precisions
-        return cls.from_squeezed(values=values)
+        return cls.from_squeezed(values=values, n_features=n_features)
+
+
+@register_dataclass_jax(data_fields=["values"])
+@dataclass
+class SphericalCovariances(DiagCovariances):
+    """Spherical covariances, a single variance per component
+
+    A spherical covariance is a diagonal covariance whose per feature variances
+    are all equal. It is stored in the very same shape as `DiagCovariances`,
+    with the single variance repeated along the features axis. This keeps the
+    covariance math identical to the diagonal case and the redundancy is cheap,
+    as the array is the same size as the array of means.
+
+    Attributes
+    ----------
+    values : jax.array
+        Covariance values. Expected shape is (1, n_components, n_features, 1),
+        with the value repeated along the features axis.
+    """
+
+    values: jax.Array
+    type: ClassVar[CovarianceType] = CovarianceType.spherical
+
+    @classmethod
+    def from_squeezed(
+        cls, values: AnyArray, n_features: int | None = None
+    ) -> SphericalCovariances:
+        """Create spherical covariances from squeezed array
+
+        Parameters
+        ----------
+        values : jax.Array ot np.array
+            Covariance values. Expected shape is (n_components,)
+        n_features : int
+            Number of features. Required, as the squeezed shape of this
+            covariance type does not encode it.
+
+        Returns
+        -------
+        covariances : SphericalCovariances
+            Covariance matrix instance.
+        """
+        if values.ndim != 1:
+            message = f"Expected array of shape (n_components,), got {values.shape}"
+            raise ValueError(message)
+
+        if n_features is None:
+            message = "n_features is required for spherical covariances"
+            raise ValueError(message)
+
+        values = jnp.expand_dims(
+            values, axis=(Axis.batch, Axis.features, Axis.features_covar)
+        )
+        return cls(values=jnp.repeat(values, n_features, axis=Axis.features))
+
+    @property
+    def n_parameters(self) -> int:
+        """Number of parameters"""
+        return int(self.n_components)
+
+    @classmethod
+    def from_responsibilities(
+        cls,
+        x: jax.Array,
+        means: jax.Array,
+        resp: jax.Array,
+        nk: jax.Array,
+        reg_covar: float,
+    ) -> SphericalCovariances:
+        """Estimate updated covariance matrix from data
+
+        The spherical variance is the average of the diagonal variances over
+        the features.
+
+        Parameters
+        ----------
+        x : jax.array
+            Feature vectors
+        means : jax.array
+            Means of the components
+        resp : jax.array
+            Responsibilities
+        nk : jax.array
+            Number of samples in each component
+        reg_covar : float
+            Regularization for the covariance matrix
+
+        Returns
+        -------
+        covariances : SphericalCovariances
+            Updated covariance matrix instance.
+        """
+        covariances = DiagCovariances.from_responsibilities(
+            x=x, means=means, resp=resp, nk=nk, reg_covar=reg_covar
+        )
+        values = jnp.mean(covariances.values, axis=Axis.features, keepdims=True)
+        return cls(values=jnp.broadcast_to(values, covariances.values.shape))
+
+    @property
+    def values_numpy(self) -> np.typing.NDArray:
+        """Covariance as numpy array"""
+        # all features share the same value, so we take the first one. The
+        # result has to be contiguous, as it is passed on to serialization.
+        return np.ascontiguousarray(np.asarray(self.values)[0, :, 0, 0])
+
+    @property
+    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+        """Compute precision matrices"""
+        return np.ascontiguousarray(
+            np.asarray(self.precisions_cholesky_sparse)[0, :, 0, 0]
+        )
 
 
 COVARIANCE: dict[CovarianceType, Any] = {
     FullCovariances.type: FullCovariances,
     DiagCovariances.type: DiagCovariances,
+    TiedCovariances.type: TiedCovariances,
+    SphericalCovariances.type: SphericalCovariances,
 }
 
 # keep this mapping separate, as names in sklearn might change
 SKLEARN_COVARIANCE_TYPE: dict[Any, str] = {
     FullCovariances: "full",
     DiagCovariances: "diag",
+    TiedCovariances: "tied",
+    SphericalCovariances: "spherical",
 }
 
 
@@ -573,12 +844,17 @@ class GaussianMixtureModelJax:
         """
         covariance_type = CovarianceType(covariance_type)
 
+        # the spherical covariances do not encode the number of features
+        n_features = means.shape[-1]
+
         means = jnp.expand_dims(means, axis=(Axis.batch, Axis.features_covar))
         weights = jnp.expand_dims(
             weights, axis=(Axis.batch, Axis.features, Axis.features_covar)
         )
 
-        covariances = COVARIANCE[covariance_type].from_squeezed(values=covariances)
+        covariances = COVARIANCE[covariance_type].from_squeezed(
+            values=covariances, n_features=n_features
+        )
         return cls(weights=weights, means=means, covariances=covariances)  # type: ignore [arg-type]
 
     @classmethod
@@ -703,7 +979,9 @@ class GaussianMixtureModelJax:
     @property
     def n_components(self) -> int:
         """Number of components"""
-        return self.covariances.n_components
+        # taken from the weights, as the covariances can be shared between
+        # components, such as for the tied covariance type
+        return self.weights.shape[Axis.components]
 
     @property
     def n_parameters(self) -> int:
@@ -974,7 +1252,14 @@ class GaussianMixtureModelJax:
         # to be static. One possibility would be to pad the arrays to the maximum number
         # of samples per component, however this might be inefficient as well.
         means = jnp.take(self.means, selected, axis=Axis.components)
-        covar = jnp.take(self.covariances.values_dense, selected, axis=Axis.components)
+
+        # the broadcast is a no-op, unless the covariances are shared between
+        # components, such as for the tied covariance type
+        values_dense = jnp.broadcast_to(
+            self.covariances.values_dense,
+            (1, self.n_components, self.n_features, self.n_features),
+        )
+        covar = jnp.take(values_dense, selected, axis=Axis.components)
 
         samples = jax.random.multivariate_normal(
             subkey,
@@ -1068,10 +1353,13 @@ class GaussianMixtureSKLearn:
             self._gmm = INIT_METHODS[self.init_params](**kwargs)  # type: ignore [arg-type]
         else:
             covar = COVARIANCE[CovarianceType(self.covariance_type)]
+            n_features = np.asarray(self.means_init).shape[-1]
 
             self._gmm = GaussianMixtureModelJax.from_squeezed(
                 means=self.means_init,  # type: ignore [arg-type]
-                covariances=covar.from_precisions(self.precisions_init).values_numpy,
+                covariances=covar.from_precisions(
+                    self.precisions_init, n_features=n_features
+                ).values_numpy,
                 weights=self.weights_init,  # type: ignore [arg-type]
                 covariance_type=self.covariance_type,
             )
