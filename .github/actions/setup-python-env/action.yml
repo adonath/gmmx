@@ -9,7 +9,10 @@ inputs:
   uv-version:
     description: "uv version to use"
     required: true
-    default: "0.4.6"
+    # 0.4.6 resolved a single version of every dependency across the whole
+    # supported Python range, which pinned jax to the oldest version that still
+    # supports Python 3.9 and left newer interpreters without a jaxlib wheel
+    default: "0.9.5"
 
 runs:
   using: "composite"
