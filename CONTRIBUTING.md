@@ -96,15 +96,28 @@ Now, validate that all unit tests are passing:
 make test
 ```
 
-9. Before raising a pull request you should also run tox.
-   This will run the tests across different versions of Python:
+9. Before raising a pull request you should also run the tests across the different versions of Python:
 
 ```bash
-tox
+make test-all
 ```
 
-This requires you to have multiple versions of python installed.
-This step is also triggered in the CI/CD pipeline, so you could also choose to skip this step locally.
+You do not need those Python versions installed, `uv` downloads whatever is missing.
+Each version gets its own environment under `.venvs/`, so your default `.venv` is left alone.
+
+The numerical results depend on the `jax` version as much as on the Python version, so it is worth running against a few of those as well:
+
+```bash
+make test-jax
+```
+
+You can also check that the lower bounds declared in `pyproject.toml` are still honest:
+
+```bash
+make test-lowest
+```
+
+These steps are also triggered in the CI/CD pipeline, so you could also choose to skip them locally.
 
 10. Commit your changes and push your branch to GitHub:
 

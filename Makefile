@@ -18,6 +18,42 @@ test: ## Test the code with pytest
 	@echo "🚀 Testing code: Running pytest"
 	@uv run python -m pytest --cov --cov-config=pyproject.toml --cov-report=xml
 
+# Each version gets its own environment, so that the default .venv is left alone
+PYTHON_VERSIONS ?= 3.9 3.10 3.11 3.12 3.13
+
+.PHONY: test-all
+test-all: ## Test the code against all supported Python versions
+	@for version in $(PYTHON_VERSIONS); do \
+		echo "🚀 Testing code: Running pytest and mypy on Python $$version"; \
+		UV_PROJECT_ENVIRONMENT=.venvs/$$version uv run --python $$version \
+			python -m pytest || exit 1; \
+		UV_PROJECT_ENVIRONMENT=.venvs/$$version uv run --python $$version \
+			mypy || exit 1; \
+	done
+
+# Older dependencies do not have wheels for the newest Python versions, so both
+# targets below pin an interpreter instead of using whatever .venv happens to be.
+COMPAT_PYTHON_VERSION ?= 3.11
+
+# Note that not every jax version supports every Python version, e.g. jax 0.11
+# requires Python 3.12. The versions here all work on the interpreter above.
+JAX_VERSIONS ?= 0.4.30 0.6.2 0.9.2
+
+.PHONY: test-jax
+test-jax: ## Test the code against multiple jax versions
+	@for version in $(JAX_VERSIONS); do \
+		echo "🚀 Testing code: Running pytest against jax $$version"; \
+		UV_PROJECT_ENVIRONMENT=.venvs/$(COMPAT_PYTHON_VERSION) \
+			uv run --python $(COMPAT_PYTHON_VERSION) --with jax==$$version \
+			python -m pytest || exit 1; \
+	done
+
+.PHONY: test-lowest
+test-lowest: ## Test the code against the lowest declared dependency versions
+	@echo "🚀 Testing code: Running pytest against the lowest direct dependencies"
+	@UV_PROJECT_ENVIRONMENT=.venvs/lowest uv run --python $(COMPAT_PYTHON_VERSION) \
+		--resolution lowest-direct --isolated python -m pytest
+
 .PHONY: build
 build: clean-build ## Build wheel file
 	@echo "🚀 Creating wheel file"
