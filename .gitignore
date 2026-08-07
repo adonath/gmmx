@@ -142,3 +142,6 @@ cython_debug/
 examples/benchmarks/results
 
 uv.lock
+
+# uv environments for the multi version test targets
+.venvs/
