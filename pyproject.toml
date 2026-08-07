@@ -62,7 +62,8 @@ warn_unused_ignores = true
 show_error_codes = true
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["gmmx", "tests"]
+addopts = "--doctest-modules"
 
 [tool.ruff]
 target-version = "py39"
