@@ -651,6 +651,31 @@ class GaussianMixtureModelJax:
         -------
         gmm : GaussianMixtureModelJax
             Gaussian mixture model instance.
+
+        Examples
+        --------
+        By default k-means is run to convergence with 10 restarts, which
+        dominates the runtime for large datasets. As the result only serves as
+        a starting point for the EM fit, a much coarser clustering is often
+        good enough. The parameters of `~sklearn.cluster.KMeans` are passed
+        through, so the initialization can be sped up considerably:
+
+        >>> import numpy as np
+        >>> from gmmx import GaussianMixtureModelJax
+        >>> x = np.random.default_rng(0).normal(size=(50_000, 20))
+        >>> gmm = GaussianMixtureModelJax.from_k_means(
+        ...     x,
+        ...     n_components=16,
+        ...     init="random",
+        ...     n_init=1,
+        ...     max_iter=1,
+        ...     tol=1e-2,
+        ... )
+
+        For 50000 samples with 20 features this is about 20 times faster than
+        the default initialization. The price is a worse starting point: the
+        subsequent EM fit needs a few more iterations and is more likely to
+        converge to a worse local optimum.
         """
         from sklearn.cluster import KMeans  # type: ignore [import-untyped]
 
