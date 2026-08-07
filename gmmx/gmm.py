@@ -56,6 +56,7 @@ from typing import Any, ClassVar, Union
 
 import jax
 import numpy as np
+import numpy.typing as npt
 from jax import numpy as jnp
 from jax import scipy as jsp
 
@@ -74,7 +75,7 @@ __all__ = [
 
 log = logging.getLogger()
 
-AnyArray = Union[np.typing.NDArray, jax.Array]
+AnyArray = Union[npt.NDArray, jax.Array]
 Device = Union[str, None]
 
 
@@ -152,7 +153,7 @@ class FullCovariances:
         return cls(values=jnp.expand_dims(values, axis=Axis.batch))
 
     @property
-    def values_numpy(self) -> np.typing.NDArray:
+    def values_numpy(self) -> npt.NDArray:
         """Covariance as numpy array"""
         return np.squeeze(np.asarray(self.values), axis=Axis.batch)
 
@@ -162,7 +163,7 @@ class FullCovariances:
         return self.values
 
     @property
-    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+    def precisions_cholesky_numpy(self) -> npt.NDArray:
         """Compute precision matrices"""
         return np.squeeze(np.asarray(self.precisions_cholesky), axis=Axis.batch)
 
@@ -356,12 +357,12 @@ class TiedCovariances(FullCovariances):
         return cls(values=jnp.expand_dims(values, axis=(Axis.batch, Axis.components)))
 
     @property
-    def values_numpy(self) -> np.typing.NDArray:
+    def values_numpy(self) -> npt.NDArray:
         """Covariance as numpy array"""
         return np.squeeze(np.asarray(self.values), axis=(Axis.batch, Axis.components))
 
     @property
-    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+    def precisions_cholesky_numpy(self) -> npt.NDArray:
         """Compute precision matrices"""
         return np.squeeze(
             np.asarray(self.precisions_cholesky), axis=(Axis.batch, Axis.components)
@@ -570,7 +571,7 @@ class DiagCovariances:
         return jnp.sqrt(1.0 / self.values).mT
 
     @property
-    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+    def precisions_cholesky_numpy(self) -> npt.NDArray:
         """Compute precision matrices"""
         return np.squeeze(
             np.asarray(self.precisions_cholesky_sparse),
@@ -578,7 +579,7 @@ class DiagCovariances:
         )
 
     @property
-    def values_numpy(self) -> np.typing.NDArray:
+    def values_numpy(self) -> npt.NDArray:
         """Covariance as numpy array"""
         return np.squeeze(
             np.asarray(self.values), axis=(Axis.batch, Axis.features_covar)
@@ -709,14 +710,14 @@ class SphericalCovariances(DiagCovariances):
         return cls(values=jnp.broadcast_to(values, covariances.values.shape))
 
     @property
-    def values_numpy(self) -> np.typing.NDArray:
+    def values_numpy(self) -> npt.NDArray:
         """Covariance as numpy array"""
         # all features share the same value, so we take the first one. The
         # result has to be contiguous, as it is passed on to serialization.
         return np.ascontiguousarray(np.asarray(self.values)[0, :, 0, 0])
 
     @property
-    def precisions_cholesky_numpy(self) -> np.typing.NDArray:
+    def precisions_cholesky_numpy(self) -> npt.NDArray:
         """Compute precision matrices"""
         return np.ascontiguousarray(
             np.asarray(self.precisions_cholesky_sparse)[0, :, 0, 0]
@@ -763,7 +764,7 @@ class GaussianMixtureModelJax:
         check_shape(self.means, (1, None, None, 1))
 
     @property
-    def weights_numpy(self) -> np.typing.NDArray:
+    def weights_numpy(self) -> npt.NDArray:
         """Weights as numpy array"""
         return np.squeeze(
             np.asarray(self.weights),
@@ -771,7 +772,7 @@ class GaussianMixtureModelJax:
         )
 
     @property
-    def means_numpy(self) -> np.typing.NDArray:
+    def means_numpy(self) -> npt.NDArray:
         """Means as numpy array"""
         return np.squeeze(
             np.asarray(self.means), axis=(Axis.batch, Axis.features_covar)
@@ -1317,22 +1318,22 @@ class GaussianMixtureSKLearn:
         self.random_state = check_random_state(self.random_state)
 
     @property
-    def weights_(self) -> np.typing.NDArray:
+    def weights_(self) -> npt.NDArray:
         """Weights of each component"""
         return check_model_fitted(self).weights_numpy
 
     @property
-    def means_(self) -> np.typing.NDArray:
+    def means_(self) -> npt.NDArray:
         """Means of each component"""
         return check_model_fitted(self).means_numpy
 
     @property
-    def precisions_cholesky_(self) -> np.typing.NDArray:
+    def precisions_cholesky_(self) -> npt.NDArray:
         """Precision matrices of each component"""
         return check_model_fitted(self).covariances.precisions_cholesky_numpy
 
     @property
-    def covariances_(self) -> np.typing.NDArray:
+    def covariances_(self) -> npt.NDArray:
         """Covariances of each component"""
         return check_model_fitted(self).covariances.values_numpy
 
@@ -1383,22 +1384,22 @@ class GaussianMixtureSKLearn:
         self.converged_ = result.converged
         return self
 
-    def predict(self, X: AnyArray) -> np.typing.NDArray:
+    def predict(self, X: AnyArray) -> npt.NDArray:
         """Predict the component index for each sample"""
         return np.squeeze(check_model_fitted(self).predict(X), axis=Axis.components)  # type: ignore [no-any-return]
 
-    def fit_predict(self) -> np.typing.NDArray:
+    def fit_predict(self) -> npt.NDArray:
         """Fit the model and predict the component index for each sample"""
         raise NotImplementedError
 
-    def predict_proba(self, X: AnyArray) -> np.typing.NDArray:
+    def predict_proba(self, X: AnyArray) -> npt.NDArray:
         """Predict the probability of each sample belonging to each component"""
         return np.squeeze(  # type: ignore [no-any-return]
             check_model_fitted(self).predict_proba(X),
             axis=(Axis.features, Axis.features_covar),
         )
 
-    def sample(self, n_samples: int) -> tuple[np.typing.NDArray, np.typing.NDArray]:
+    def sample(self, n_samples: int) -> tuple[npt.NDArray, npt.NDArray]:
         """Sample from the model
 
         Returns
@@ -1414,21 +1415,21 @@ class GaussianMixtureSKLearn:
         )
         return np.asarray(samples), np.asarray(selected)
 
-    def score(self, X: AnyArray) -> np.typing.NDArray:
+    def score(self, X: AnyArray) -> npt.NDArray:
         """Compute the log likelihood of the data"""
         return np.asarray(check_model_fitted(self).score(X))
 
-    def score_samples(self, X: AnyArray) -> np.typing.NDArray:
+    def score_samples(self, X: AnyArray) -> npt.NDArray:
         """Compute the weighted log probabilities for each sample"""
         return np.squeeze(  # type: ignore [no-any-return]
             (check_model_fitted(self).score_samples(X)),
             axis=(Axis.components, Axis.features, Axis.features_covar),
         )
 
-    def bic(self, X: AnyArray) -> np.typing.NDArray:
+    def bic(self, X: AnyArray) -> npt.NDArray:
         """Compute the Bayesian Information Criterion"""
         return np.asarray(check_model_fitted(self).bic(X))
 
-    def aic(self, X: AnyArray) -> np.typing.NDArray:
+    def aic(self, X: AnyArray) -> npt.NDArray:
         """Compute the Akaike Information Criterion"""
         return np.asarray(check_model_fitted(self).aic(X))
