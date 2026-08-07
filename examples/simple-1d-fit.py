@@ -71,7 +71,7 @@ if __name__ == "__main__":
     n_samples = 100_000
 
     key = jax.random.PRNGKey(0)
-    x = gmm_jax.sample(key, n_samples=n_samples)
+    x, _ = gmm_jax.sample(key, n_samples=n_samples)
 
     ax = plt.subplot(111)
     ax.hist(x, bins=100, density=True)

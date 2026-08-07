@@ -33,14 +33,15 @@ conda install gmmx
 ## Usage
 
 ```python
+import jax
 from gmmx import GaussianMixtureModelJax, EMFitter
 
 # Create a Gaussian Mixture Model with 16 components and 32 features
 gmm = GaussianMixtureModelJax.create(n_components=16, n_features=32)
 
-# Draw samples from the model
+# Draw samples from the model, along with the component they were drawn from
 n_samples = 10_000
-x = gmm.sample(n_samples)
+x, selected = gmm.sample(jax.random.PRNGKey(0), n_samples)
 
 # Fit the model to the data
 em_fitter = EMFitter(tol=1e-3, max_iter=100)
