@@ -48,6 +48,19 @@ em_fitter = EMFitter(tol=1e-3, max_iter=100)
 gmm_fitted = em_fitter.fit(x=x, gmm=gmm)
 ```
 
+Alternatively the model can be fitted by gradient descent, using the Adam optimizer from [optax](https://optax.readthedocs.io):
+
+```python
+from gmmx import AdamFitter
+
+adam_fitter = AdamFitter(tol=1e-6, max_iter=1_000, learning_rate=1e-2)
+gmm_fitted = adam_fitter.fit(x=x, gmm=gmm)
+```
+
+Both fitters share the same interface and return the same result object.
+The `EMFitter` converges in far fewer iterations and should be the first choice.
+The `AdamFitter` does not rely on the closed form solution of the maximization step, which makes it easier to extend, for example to a fit of only a subset of the parameters.
+
 If you use the code in a scientific publication, please cite the Zenodo DOI from the badge above.
 
 ## Why Gaussian Mixture models?

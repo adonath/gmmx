@@ -268,10 +268,13 @@ class FullCovariances:
     @property
     def log_det_cholesky(self) -> jax.Array:
         """Log determinant of the cholesky decomposition"""
-        diag = jnp.trace(
-            jnp.log(self.precisions_cholesky),
-            axis1=Axis.features,
-            axis2=Axis.features_covar,
+        # Note: the log is taken of the diagonal only. Taking it of the full
+        # triangular matrix would introduce -inf values off the diagonal, which
+        # do not affect the value, but result in NaN gradients.
+        idx = jnp.arange(self.n_features)
+        diag = jnp.sum(
+            jnp.log(self.precisions_cholesky[:, :, idx, idx]),
+            axis=-1,
         )
         return jnp.expand_dims(diag, axis=(Axis.features, Axis.features_covar))
 
@@ -293,6 +296,42 @@ class FullCovariances:
         """Create covariance matrix from precision matrices"""
         values = jsp.linalg.inv(precisions)
         return cls.from_squeezed(values=values)
+
+    @property
+    def values_unconstrained(self) -> jax.Array:
+        """Unconstrained representation of the covariance values
+
+        This is the lower triangular Cholesky factor of the covariance matrix,
+        with the diagonal mapped to log space. See `~FullCovariances.from_unconstrained`.
+        """
+        cholesky = jsp.linalg.cholesky(self.values, lower=True)
+        idx = jnp.arange(self.n_features)
+        return cholesky.at[:, :, idx, idx].set(jnp.log(cholesky[:, :, idx, idx]))
+
+    @classmethod
+    def from_unconstrained(cls, values: jax.Array) -> FullCovariances:
+        """Create covariance matrix from its unconstrained representation
+
+        The strictly lower triangle of the array is used as the off-diagonal
+        part of the Cholesky factor and the exponential of the diagonal as its
+        diagonal. This maps any real valued array to a valid positive definite
+        covariance matrix, which is what gradient based optimizers require. The
+        upper triangle of the array is ignored.
+
+        Parameters
+        ----------
+        values : jax.array
+            Unconstrained values. Expected shape is (1, n_components, n_features, n_features)
+
+        Returns
+        -------
+        covariances : FullCovariances
+            Covariance matrix instance.
+        """
+        idx = jnp.arange(values.shape[Axis.features])
+        cholesky = jnp.tril(values, k=-1)
+        cholesky = cholesky.at[:, :, idx, idx].set(jnp.exp(values[:, :, idx, idx]))
+        return cls(values=jnp.matmul(cholesky, cholesky.mT))
 
 
 @register_dataclass_jax(data_fields=["values"])
@@ -454,6 +493,35 @@ class DiagCovariances:
         """Create covariance matrix from precision matrices"""
         values = 1.0 / precisions
         return cls.from_squeezed(values=values)
+
+    @property
+    def values_unconstrained(self) -> jax.Array:
+        """Unconstrained representation of the covariance values
+
+        This is the logarithm of the covariance values. See
+        `~DiagCovariances.from_unconstrained`.
+        """
+        return jnp.log(self.values)
+
+    @classmethod
+    def from_unconstrained(cls, values: jax.Array) -> DiagCovariances:
+        """Create covariance matrix from its unconstrained representation
+
+        The exponential of the array is used as the covariance values. This maps
+        any real valued array to a valid positive definite covariance matrix,
+        which is what gradient based optimizers require.
+
+        Parameters
+        ----------
+        values : jax.array
+            Unconstrained values. Expected shape is (1, n_components, n_features, 1)
+
+        Returns
+        -------
+        covariances : DiagCovariances
+            Covariance matrix instance.
+        """
+        return cls(values=jnp.exp(values))
 
 
 COVARIANCE: dict[CovarianceType, Any] = {

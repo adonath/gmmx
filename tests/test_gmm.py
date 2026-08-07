@@ -4,7 +4,13 @@ import pytest
 from jax import numpy as jnp
 from numpy.testing import assert_allclose
 
-from gmmx import EMFitter, GaussianMixtureModelJax, GaussianMixtureSKLearn
+from gmmx import (
+    AdamFitter,
+    EMFitter,
+    GaussianMixtureModelJax,
+    GaussianMixtureSKLearn,
+    UnconstrainedParameters,
+)
 
 TEST_COVARIANCES = {
     "full": np.array([
@@ -162,6 +168,93 @@ def test_fit(gmm_jax):
     assert_allclose(result.log_likelihood_diff, expected[covar_str], atol=fitter.tol)
 
     assert_allclose(result.gmm.weights_numpy, [0.2, 0.8], rtol=0.05)
+
+
+def test_unconstrained_parameters_roundtrip(gmm_jax):
+    parameters = UnconstrainedParameters.from_gmm(gmm_jax)
+
+    assert parameters.covariance_type == gmm_jax.covariances.type
+    assert parameters.covariances.shape == gmm_jax.covariances.values.shape
+
+    gmm = parameters.to_gmm()
+
+    assert_allclose(gmm.weights_numpy, gmm_jax.weights_numpy, rtol=1e-6)
+    assert_allclose(gmm.means_numpy, gmm_jax.means_numpy, rtol=1e-6)
+    assert_allclose(
+        gmm.covariances.values_numpy, gmm_jax.covariances.values_numpy, atol=1e-6
+    )
+
+
+def test_fit_adam(gmm_jax):
+    random_state = np.random.RandomState(827392)
+    x, _ = gmm_jax.to_sklearn(random_state=random_state).sample(16_000)
+
+    fitter = AdamFitter(tol=1e-6, max_iter=5_000)
+    result = fitter.fit(x=x, gmm=gmm_jax)
+
+    assert result.converged
+
+    # the model the data was sampled from is already at the optimum, so the fit
+    # should stay there and agree with the result of the EM fitter
+    covar_str = gmm_jax.covariances.type.value
+
+    expected = {"full": -4.368584, "diag": -5.422236}
+    assert_allclose(result.log_likelihood, expected[covar_str], rtol=2e-4)
+    assert result.log_likelihood_diff < fitter.tol
+
+    # the tolerances are dominated by the sampling noise of the data, the EM
+    # fitter deviates from the true parameters by a comparable amount
+    assert_allclose(result.gmm.weights_numpy, WEIGHTS, rtol=0.05)
+    assert_allclose(result.gmm.means_numpy, MEANS, atol=0.1)
+    assert_allclose(
+        result.gmm.covariances.values_numpy, TEST_COVARIANCES[covar_str], rtol=0.1
+    )
+
+
+def test_fit_adam_max_iter(gmm_jax):
+    x = jnp.asarray(X)
+
+    fitter = AdamFitter(tol=0.0, max_iter=10)
+    result = fitter.fit(x=x, gmm=gmm_jax)
+
+    assert int(result.n_iter) == 10
+    assert not result.converged
+
+    # a gradient step always has to improve on the initial log-likelihood
+    assert result.log_likelihood > gmm_jax.score(x)
+
+
+def test_fit_adam_against_em(gmm_jax):
+    random_state = np.random.RandomState(82792)
+    x, _ = gmm_jax.to_sklearn(random_state=random_state).sample(16_000)
+
+    covar_str = gmm_jax.covariances.type.value
+
+    # start the fit away from the optimum, but close enough for both fitters to
+    # converge to the same local optimum
+    gmm = GaussianMixtureModelJax.from_squeezed(
+        means=MEANS + 0.5,
+        covariances=2 * TEST_COVARIANCES[covar_str],
+        weights=np.array([0.5, 0.5]),
+        covariance_type=covar_str,
+    )
+
+    result_em = EMFitter(tol=1e-6).fit(x=x, gmm=gmm)
+    result_adam = AdamFitter(tol=1e-8, max_iter=20_000).fit(x=x, gmm=gmm)
+
+    assert result_em.converged
+    assert result_adam.converged
+
+    assert_allclose(result_adam.log_likelihood, result_em.log_likelihood, rtol=1e-3)
+    assert_allclose(
+        result_adam.gmm.weights_numpy, result_em.gmm.weights_numpy, rtol=0.05
+    )
+    assert_allclose(result_adam.gmm.means_numpy, result_em.gmm.means_numpy, atol=0.1)
+    assert_allclose(
+        result_adam.gmm.covariances.values_numpy,
+        result_em.gmm.covariances.values_numpy,
+        atol=0.1,
+    )
 
 
 def test_move_to_device(gmm_jax):

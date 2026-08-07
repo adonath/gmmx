@@ -1,1 +1,3 @@
 ::: gmmx.gmm
+
+::: gmmx.fit
