@@ -276,7 +276,7 @@ def get_meta_str(result, x_axis):
 def plot_result(result, x_axis, filename, title=""):
     """Plot the benchmark result"""
     log.info(f"Plotting {filename}")
-    fig, ax = plt.subplots(1, 1, figsize=(6, 4))
+    _, ax = plt.subplots(1, 1, figsize=(6, 4))
 
     x = getattr(result, x_axis)
     meta = get_meta_str(result, x_axis)

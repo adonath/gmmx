@@ -22,6 +22,17 @@ TEST_PRECISIONS = {
 MEANS = np.array([[-1.0, 0.0, 1.0], [1.0, 0.0, -1.0]])
 WEIGHTS = np.array([0.2, 0.8])
 
+# Note: the dtype matters, as sklearn allocates intermediate arrays using the
+# dtype of the input data, which silently truncates the result for integers.
+X = np.array([
+    [1.0, 2.0, 3.0],
+    [1.0, 4.0, 2.0],
+    [1.0, 0.0, 6.0],
+    [4.0, 2.0, 4.0],
+    [4.0, 4.0, 4.0],
+    [4.0, 0.0, 2.0],
+])
+
 
 @pytest.fixture(params=["full", "diag"])
 def gmm_jax(request):
@@ -42,11 +53,17 @@ def test_simple(gmm_jax):
     assert gmm_jax.n_parameters == expected[gmm_jax.covariances.type.value]
 
 
-def test_create():
-    gmm = GaussianMixtureModelJax.create(n_components=3, n_features=2)
+@pytest.mark.parametrize(
+    ("covariance_type", "n_parameters"), [("full", 17), ("diag", 14)]
+)
+def test_create(covariance_type, n_parameters):
+    gmm = GaussianMixtureModelJax.create(
+        n_components=3, n_features=2, covariance_type=covariance_type
+    )
     assert gmm.n_features == 2
     assert gmm.n_components == 3
-    assert gmm.n_parameters == 17
+    assert gmm.n_parameters == n_parameters
+    assert_allclose(gmm.covariances.values_dense, np.stack([np.eye(2)] * 3)[None])
 
 
 def test_init_incorrect():
@@ -66,14 +83,7 @@ def test_init_incorrect():
 
 
 def test_against_sklearn(gmm_jax):
-    x = np.array([
-        [1, 2, 3],
-        [1, 4, 2],
-        [1, 0, 6],
-        [4, 2, 4],
-        [4, 4, 4],
-        [4, 0, 2],
-    ])
+    x = X
 
     gmm = gmm_jax.to_sklearn()
     result_ref = gmm._estimate_weighted_log_prob(X=x)
@@ -89,14 +99,7 @@ def test_against_sklearn(gmm_jax):
 )
 def test_against_sklearn_all(gmm_jax, method):
     gmm = gmm_jax.to_sklearn()
-    x = np.array([
-        [1, 2, 3],
-        [1, 4, 2],
-        [1, 0, 6],
-        [4, 2, 4],
-        [4, 4, 4],
-        [4, 0, 2],
-    ])
+    x = X
     result_sklearn = getattr(gmm, method)(x)
     result_jax = getattr(gmm_jax, method)(jnp.asarray(x))
     assert_allclose(np.squeeze(result_jax), result_sklearn, rtol=1e-5)
@@ -104,32 +107,26 @@ def test_against_sklearn_all(gmm_jax, method):
 
 def test_sample(gmm_jax):
     key = jax.random.PRNGKey(0)
-    samples = gmm_jax.sample(key, 2)
 
-    assert samples.shape == (2, 3)
+    assert gmm_jax.sample(key, 2).shape == (2, 3)
 
-    expected = {
-        "float32": {"full": -0.458194, "diag": -1.525666},
-        "float64": {"full": 0.855865, "diag": 0.750351},
-    }
-    assert_allclose(
-        samples[0, 0],
-        expected[str(gmm_jax.covariances.values.dtype)][gmm_jax.covariances.type.value],
-        rtol=1e-6,
+    # The individual sample values depend on the random number stream of the
+    # installed JAX version, so we compare the empirical distribution instead.
+    samples = np.asarray(gmm_jax.sample(key, 100_000))
+
+    mean_expected = np.sum(WEIGHTS[:, np.newaxis] * MEANS, axis=0)
+    diff = MEANS - mean_expected
+    covariances = np.asarray(gmm_jax.covariances.values_dense)[0]
+    covar_expected = np.einsum("k,kij->ij", WEIGHTS, covariances) + np.einsum(
+        "k,ki,kj->ij", WEIGHTS, diff, diff
     )
+
+    assert_allclose(samples.mean(axis=0), mean_expected, atol=0.05)
+    assert_allclose(np.cov(samples.T), covar_expected, atol=0.05)
 
 
 def test_predict(gmm_jax):
-    x = np.array([
-        [1, 2, 3],
-        [1, 4, 2],
-        [1, 0, 6],
-        [4, 2, 4],
-        [4, 4, 4],
-        [4, 0, 2],
-    ])
-
-    result = gmm_jax.predict(x=jnp.asarray(x))
+    result = gmm_jax.predict(x=jnp.asarray(X))
 
     assert result.shape == (6, 1)
     assert_allclose(result[0], 0, rtol=1e-6)
@@ -143,8 +140,9 @@ def test_fit(gmm_jax):
     result = fitter.fit(x=x, gmm=gmm_jax)
 
     # The number of iterations is not deterministic across architectures
+    # and depends on the precision the model is fitted with
     covar_str = gmm_jax.covariances.type.value
-    expected = {"full": [4, 7], "diag": [7]}
+    expected = {"full": [4, 7], "diag": [6, 7]}
     assert int(result.n_iter) in expected[covar_str]
 
     expected = {"full": -4.3686, "diag": -5.422534}
@@ -218,10 +216,9 @@ def test_fit_against_sklearn(gmm_jax):
 
 def test_sklearn_api(gmm_jax):
     random_state = np.random.RandomState(829282)
-    x = gmm_jax.sample(key=jax.random.PRNGKey(0), n_samples=16_000)
+    x = X
 
     covar_str = gmm_jax.covariances.type.value
-    dtype_str = str(gmm_jax.covariances.values.dtype)
 
     gmm = GaussianMixtureSKLearn(
         n_components=2,
@@ -243,55 +240,30 @@ def test_sklearn_api(gmm_jax):
 
     value = gmm.score_samples(x[:2])
     expected = {
-        "float32": {"full": [-4.435944, -5.810338], "diag": [-5.678393, -7.025789]},
-        "float64": {"full": [-3.24554, -3.994696], "diag": [-4.485159, -4.663513]},
+        "full": [-7.018339, -12.698977],
+        "diag": [-8.909672, -11.101017],
     }
-
-    assert_allclose(value, expected[dtype_str][covar_str], rtol=1e-4)
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.score(x[:2])
-    expected = {
-        "float32": {"full": -5.123141, "diag": -6.352091},
-        "float64": {"full": -3.620118, "diag": -4.574336},
-    }
-    assert_allclose(value, expected[dtype_str][covar_str], rtol=1e-4)
+    expected = {"full": -9.858658, "diag": -10.005345}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.predict(x[:2])
-    expected = {
-        "float32": {"full": [1, 0], "diag": [1, 0]},
-        "float64": {"full": [1, 1], "diag": [1, 1]},
-    }
-    assert_allclose(value, expected[dtype_str][covar_str], rtol=1e-4)
+    expected = {"full": [0, 0], "diag": [0, 0]}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.predict_proba(x[:2])
-
-    expected_float32 = {
-        "full": [[1.188522e-07, 1.000000e00], [9.999938e-01, 6.106255e-06]],
-        "diag": [[3.933927e-06, 9.999962e-01], [9.733525e-01, 2.664736e-02]],
-    }
-
-    expected_float64 = {
-        "full": [[1.114604e-06, 9.999989e-01], [2.595440e-02, 9.740456e-01]],
-        "diag": [[0.002832, 0.997168], [0.451152, 0.548848]],
-    }
-
     expected = {
-        "float32": expected_float32,
-        "float64": expected_float64,
+        "full": [[0.99866, 0.00134], [0.931738, 0.068262]],
+        "diag": [[0.981054, 0.018946], [0.720519, 0.279481]],
     }
-    assert_allclose(value, expected[dtype_str][covar_str], atol=1e-3)
+    assert_allclose(value, expected[covar_str], atol=1e-3)
 
     value = gmm.aic(x[:2])
-    expected = {
-        "float32": {"full": 58.492565, "diag": 51.408363},
-        "float64": {"full": 52.480472, "diag": 44.297345},
-    }
-    assert_allclose(value, expected[dtype_str][covar_str], rtol=1e-4)
+    expected = {"full": 77.434632, "diag": 66.021378}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
 
     value = gmm.bic(x[:2])
-    expected = {
-        "float32": {"full": 33.66236, "diag": 34.419277},
-        "float64": {"full": 27.650269, "diag": 27.308258},
-    }
-
-    assert_allclose(value, expected[dtype_str][covar_str], rtol=1e-4)
+    expected = {"full": 52.604428, "diag": 49.032291}
+    assert_allclose(value, expected[covar_str], rtol=1e-4)
